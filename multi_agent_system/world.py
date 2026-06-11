@@ -19,8 +19,7 @@ class WorldState:
     logs: List[str] = field(default_factory=list)
     selected_model: str = ""
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_api_key: str = ""
-    ollama_executable_path: str = ""
+
     engine_running: bool = False
     tick_count: int = 0
     project_files: Dict[str, str] = field(default_factory=dict)
@@ -81,8 +80,7 @@ class WorldState:
             "logs": self.logs,
             "selected_model": self.selected_model,
             "ollama_base_url": self.ollama_base_url,
-            "ollama_api_key": self.ollama_api_key,
-            "ollama_executable_path": self.ollama_executable_path,
+
             "engine_running": self.engine_running,
             "tick_count": self.tick_count,
             "project_files": self.project_files,
@@ -96,8 +94,7 @@ class WorldState:
             logs=data.get("logs", []),
             selected_model=data.get("selected_model", ""),
             ollama_base_url=data.get("ollama_base_url", "http://127.0.0.1:11434"),
-            ollama_api_key=data.get("ollama_api_key", ""),
-            ollama_executable_path=data.get("ollama_executable_path", ""),
+
             engine_running=False,
             tick_count=data.get("tick_count", 0),
             project_files=data.get("project_files", {}),
