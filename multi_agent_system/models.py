@@ -65,6 +65,7 @@ class Agent:
         "create_file",
         "send_message",
         "remember",
+        "run_python",
     ])
     status: AgentStatus = "idle"
     enabled: bool = True
@@ -93,7 +94,7 @@ class Agent:
             long_term_memory=data.get("long_term_memory", []),
             incoming_message_ids=data.get("incoming_message_ids", []),
             outgoing_message_ids=data.get("outgoing_message_ids", []),
-            tools=data.get("tools") or ["read_file", "write_file", "create_file", "send_message", "remember"],
+            tools=data.get("tools") or ["read_file", "write_file", "create_file", "send_message", "remember", "run_python"],
             status=data.get("status", "idle"),
             enabled=data.get("enabled", True),
         )

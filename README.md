@@ -4,13 +4,13 @@ A local Tkinter application that runs a tick-based multi-agent simulation with O
 
 ## Features
 
-- Graphical interface with agent list, interaction logs, selected-agent chat, model controls, and system status.
+- Graphical interface with agent list, interaction logs, selected-agent chat, model controls, explicit Ollama check/refresh buttons, and system status.
 - Agent creation, editing, deletion, short-term memory, long-term memory, tools, status, and isolated logical identity.
 - Central message bus with direct and broadcast messages.
 - Tick-based simulation engine that prompts a selected Ollama model and safely applies structured JSON actions.
-- Ollama status checks, model list refresh, model selection, and an install button that opens the official Ollama download page.
+- Ollama status checks, model list refresh, model selection, and an install button that opens the official Ollama download page and displays local setup instructions.
 - Persistent world state stored in `data/world_state.json` and restored on startup.
-- Controlled tools for file reads/writes inside `workspace/`, local Python snippets, memory updates, and inter-agent messages.
+- Controlled tools for file reads/writes inside `workspace/`, local Python snippets, memory updates, and inter-agent messages. Tools are checked against each agent's enabled tool list before execution.
 - Defensive handling for malformed model responses: errors are logged and the simulation keeps running.
 
 ## Run
@@ -25,7 +25,7 @@ Install Ollama from <https://ollama.com/download>, start Ollama locally, and pul
 ollama pull llama3.1
 ```
 
-Then use **Refresh models** in the application and choose the installed model.
+Then use **Check Ollama** or **Refresh models** in the application and choose the installed model. You can switch models at runtime from the model selector without restarting the app.
 
 ## Agent response format
 
@@ -41,4 +41,11 @@ Agents are instructed to return strict JSON:
     {"recipient": "broadcast", "content": "hello agents"}
   ]
 }
+```
+
+
+## Test
+
+```bash
+python -m unittest discover -s tests -v
 ```

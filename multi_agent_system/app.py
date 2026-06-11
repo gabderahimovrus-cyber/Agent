@@ -58,6 +58,8 @@ class MultiAgentApp:
         self.engine = SimulationEngine(self.world, self.ollama, workspace)
         self.selected_agent_id: Optional[str] = None
         self.tick_interval_ms = 2500
+        self.ollama_available = False
+        self._tick_lock = threading.Lock()
         self._build_ui()
         self.refresh_all()
         self.check_ollama()
@@ -78,7 +80,8 @@ class MultiAgentApp:
         ttk.Button(toolbar, text="One tick", command=self.run_tick_async).pack(side="left", padx=2)
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
         ttk.Button(toolbar, text="Install Ollama", command=self.install_ollama).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Refresh models", command=self.check_ollama).pack(side="left", padx=2)
+        ttk.Button(toolbar, text="Check Ollama", command=self.check_ollama).pack(side="left", padx=2)
+        ttk.Button(toolbar, text="Refresh models", command=self.refresh_models).pack(side="left", padx=2)
         self.model_combo = ttk.Combobox(toolbar, width=32, state="readonly")
         self.model_combo.pack(side="left", padx=2)
         self.model_combo.bind("<<ComboboxSelected>>", self.select_model)
@@ -159,11 +162,10 @@ class MultiAgentApp:
         self.chat_text.see("end")
 
     def refresh_status(self) -> None:
-        status = self.ollama.status()
         engine = "running" if self.world.engine_running else "stopped"
         model = self.world.selected_model or "no model selected"
         self.status_var.set(
-            f"Ollama: {'connected' if status.available else 'offline'} | Engine: {engine} | Model: {model} | "
+            f"Ollama: {'connected' if self.ollama_available else 'offline'} | Engine: {engine} | Model: {model} | "
             f"Agents: {len(self.world.agents)} | Tick: {self.world.tick_count}"
         )
 
@@ -208,18 +210,29 @@ class MultiAgentApp:
 
     def check_ollama(self) -> None:
         status = self.ollama.status()
-        self.model_combo.configure(values=status.models)
-        if self.world.selected_model in status.models:
-            self.model_combo.set(self.world.selected_model)
-        elif status.models:
-            self.world.selected_model = status.models[0]
-            self.model_combo.set(status.models[0])
+        self.ollama_available = status.available
+        self._apply_model_list(status.models)
         self.world.add_log(status.message)
         self.save_and_refresh()
 
+    def refresh_models(self) -> None:
+        self.check_ollama()
+
+    def _apply_model_list(self, models: list[str]) -> None:
+        self.model_combo.configure(values=models)
+        if self.world.selected_model in models:
+            self.model_combo.set(self.world.selected_model)
+        elif models:
+            self.world.selected_model = models[0]
+            self.model_combo.set(models[0])
+        else:
+            self.world.selected_model = ""
+            self.model_combo.set("")
+
     def install_ollama(self) -> None:
         self.ollama.open_install_page()
-        self.world.add_log("Opened official Ollama installation page")
+        messagebox.showinfo("Install Ollama", self.ollama.install_instructions())
+        self.world.add_log("Opened official Ollama installation page and displayed installation instructions")
         self.save_and_refresh()
 
     def select_model(self, _event: object = None) -> None:
@@ -247,8 +260,16 @@ class MultiAgentApp:
         threading.Thread(target=self._run_tick_worker, daemon=True).start()
 
     def _run_tick_worker(self) -> None:
-        self.engine.tick()
-        self.store.save(self.world)
+        if not self._tick_lock.acquire(blocking=False):
+            self.world.add_log("Tick skipped: previous tick is still running")
+            self.store.save(self.world)
+            self.root.after(0, self.refresh_all)
+            return
+        try:
+            self.engine.tick()
+            self.store.save(self.world)
+        finally:
+            self._tick_lock.release()
         self.root.after(0, self.refresh_all)
 
     def save_and_refresh(self) -> None:
