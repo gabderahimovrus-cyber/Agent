@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, simpledialog, ttk
-from typing import Optional
+from tkinter import filedialog, messagebox, simpledialog, ttk
+from typing import Any, Optional
 
 from .engine import SimulationEngine
 from .ollama_client import OllamaClient
@@ -24,15 +25,13 @@ class AgentDialog(simpledialog.Dialog):
         super().__init__(parent, title)
 
     def body(self, master: tk.Misc) -> tk.Widget:
-        ttk.Label(master, text="Имя").grid(row=0, column=0, sticky="w", padx=4, pady=4)
-        ttk.Label(master, text="Роль").grid(row=1, column=0, sticky="w", padx=4, pady=4)
-        ttk.Label(master, text="Системный промпт").grid(row=2, column=0, sticky="nw", padx=4, pady=4)
+
         self.name_entry = ttk.Entry(master, width=42)
         self.role_entry = ttk.Entry(master, width=42)
-        self.prompt_text = tk.Text(master, width=52, height=8)
-        self.name_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        self.role_entry.grid(row=1, column=1, sticky="ew", padx=4, pady=4)
-        self.prompt_text.grid(row=2, column=1, sticky="nsew", padx=4, pady=4)
+        self.prompt_text = tk.Text(master, width=52, height=8, wrap="word", undo=True)
+        self.name_entry.grid(row=0, column=1, sticky="ew", padx=8, pady=6)
+        self.role_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=6)
+        self.prompt_text.grid(row=2, column=1, sticky="nsew", padx=8, pady=6)
         self.name_entry.insert(0, self.initial_name)
         self.role_entry.insert(0, self.initial_role)
         self.prompt_text.insert("1.0", self.initial_prompt)
@@ -49,24 +48,7 @@ class AgentDialog(simpledialog.Dialog):
 class SettingsDialog(simpledialog.Dialog):
     """Modal dialog for editing application settings."""
 
-    def __init__(self, parent: tk.Misc, ollama_base_url: str) -> None:
-        self.initial_ollama_base_url = ollama_base_url
-        self.result = None
-        super().__init__(parent, "Настройки")
-
-    def body(self, master: tk.Misc) -> tk.Widget:
-        ttk.Label(master, text="API Ollama").grid(row=0, column=0, sticky="w", padx=4, pady=4)
-        self.ollama_url_entry = ttk.Entry(master, width=46)
-        self.ollama_url_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        self.ollama_url_entry.insert(0, self.initial_ollama_base_url)
-        ttk.Label(
-            master,
-            text="Например: http://127.0.0.1:11434",
-            foreground="gray",
-        ).grid(row=1, column=1, sticky="w", padx=4, pady=(0, 4))
-        master.columnconfigure(1, weight=1)
-        return self.ollama_url_entry
-
+ main
     def validate(self) -> bool:
         value = self.ollama_url_entry.get().strip()
         if not value:
@@ -78,7 +60,7 @@ class SettingsDialog(simpledialog.Dialog):
         return True
 
     def apply(self) -> None:
-        self.result = self.ollama_url_entry.get().strip().rstrip("/")
+in
 
 
 class MultiAgentApp:
@@ -87,79 +69,85 @@ class MultiAgentApp:
     def __init__(self, root: tk.Tk, state_path: Path, workspace: Path) -> None:
         self.root = root
         self.root.title("Локальная многоагентная ИИ-система")
-        self.store = WorldStore(state_path)
-        self.world: WorldState = self.store.load()
-        self.ollama = OllamaClient(self.world.ollama_base_url)
+
         self.engine = SimulationEngine(self.world, self.ollama, workspace)
         self.selected_agent_id: Optional[str] = None
         self.tick_interval_ms = 2500
         self.ollama_available = False
         self._tick_lock = threading.Lock()
+        self._animation_step = 0
+        self._ollama_process: Optional[subprocess.Popen[str]] = None
         self._build_ui()
+        self._install_clipboard_shortcuts()
         self.refresh_all()
         self.check_ollama()
+        self._animate_header()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def _build_ui(self) -> None:
+        self._configure_style()
+        self.root.configure(bg="#0f172a")
+        self.root.columnconfigure(0, weight=0)
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(1, weight=1)
-
-        menu_bar = tk.Menu(self.root)
-        settings_menu = tk.Menu(menu_bar, tearoff=False)
-        settings_menu.add_command(label="Настройки", command=self.open_settings)
-        menu_bar.add_cascade(label="Меню", menu=settings_menu)
-        self.root.config(menu=menu_bar)
-
-        toolbar = ttk.Frame(self.root, padding=6)
-        toolbar.grid(row=0, column=0, columnspan=3, sticky="ew")
-        ttk.Button(toolbar, text="Создать агента", command=self.create_agent).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Изменить агента", command=self.edit_agent).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Удалить агента", command=self.delete_agent).pack(side="left", padx=2)
-        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
-        ttk.Button(toolbar, text="Запустить симуляцию", command=self.start_engine).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Остановить симуляцию", command=self.stop_engine).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Один шаг", command=self.run_tick_async).pack(side="left", padx=2)
-        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
-        ttk.Button(toolbar, text="Установить Ollama", command=self.install_ollama).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Проверить Ollama", command=self.check_ollama).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="Обновить модели", command=self.refresh_models).pack(side="left", padx=2)
-        self.model_combo = ttk.Combobox(toolbar, width=32, state="readonly")
-        self.model_combo.pack(side="left", padx=2)
-        self.model_combo.bind("<<ComboboxSelected>>", self.select_model)
-
-        left = ttk.LabelFrame(self.root, text="Агенты", padding=6)
-        left.grid(row=1, column=0, sticky="nsew", padx=6, pady=6)
+ main
         left.rowconfigure(0, weight=1)
-        self.agent_list = tk.Listbox(left, width=30)
+        self.agent_list = tk.Listbox(
+            left,
+            width=32,
+            bg="#111827",
+            fg="#e5e7eb",
+            selectbackground="#2563eb",
+            selectforeground="#ffffff",
+            activestyle="none",
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#334155",
+        )
         self.agent_list.grid(row=0, column=0, sticky="nsew")
         self.agent_list.bind("<<ListboxSelect>>", self.on_agent_select)
+        self._attach_context_menu(self.agent_list)
 
-        center = ttk.LabelFrame(self.root, text="Журнал взаимодействий", padding=6)
-        center.grid(row=1, column=1, sticky="nsew", padx=6, pady=6)
+ main
         center.rowconfigure(0, weight=1)
         center.columnconfigure(0, weight=1)
-        self.log_text = tk.Text(center, wrap="word", state="disabled")
+        self.log_text = tk.Text(
+            center,
+            wrap="word",
+            state="disabled",
+            bg="#020617",
+            fg="#cbd5e1",
+            insertbackground="#93c5fd",
+            relief="flat",
+            padx=10,
+            pady=10,
+        )
         self.log_text.grid(row=0, column=0, sticky="nsew")
+        self._attach_context_menu(self.log_text)
 
-        right = ttk.LabelFrame(self.root, text="Чат с выбранным агентом", padding=6)
-        right.grid(row=1, column=2, sticky="nsew", padx=6, pady=6)
-        right.rowconfigure(1, weight=1)
-        right.columnconfigure(0, weight=1)
-        self.agent_details = ttk.Label(right, text="Агент не выбран", justify="left")
+
         self.agent_details.grid(row=0, column=0, sticky="ew")
-        self.chat_text = tk.Text(right, wrap="word", width=42, height=18, state="disabled")
-        self.chat_text.grid(row=1, column=0, sticky="nsew", pady=6)
-        chat_bar = ttk.Frame(right)
+        self.chat_text = tk.Text(
+            right,
+            wrap="word",
+            width=44,
+            height=18,
+            state="disabled",
+            bg="#020617",
+            fg="#e2e8f0",
+            insertbackground="#93c5fd",
+            relief="flat",
+            padx=10,
+            pady=10,
+        )
+        self.chat_text.grid(row=1, column=0, sticky="nsew", pady=8)
+        self._attach_context_menu(self.chat_text)
+        chat_bar = ttk.Frame(right, style="Card.TFrame")
         chat_bar.grid(row=2, column=0, sticky="ew")
         chat_bar.columnconfigure(0, weight=1)
         self.chat_entry = ttk.Entry(chat_bar)
-        self.chat_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.chat_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
         self.chat_entry.bind("<Return>", lambda _event: self.send_chat())
-        ttk.Button(chat_bar, text="Отправить", command=self.send_chat).grid(row=0, column=1)
-
-        self.status_var = tk.StringVar(value="Запуск")
-        status = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w", padding=4)
-        status.grid(row=2, column=0, columnspan=3, sticky="ew")
+ main
 
     def refresh_all(self) -> None:
         self.refresh_agents()
@@ -173,7 +161,8 @@ class MultiAgentApp:
         ids = list(self.world.agents.keys())
         for agent_id in ids:
             agent = self.world.agents[agent_id]
-            self.agent_list.insert("end", f"{agent.name} — {agent.role} [{agent.status}]")
+            status_icon = {"idle": "🟢", "thinking": "🔵", "error": "🔴", "disabled": "⚫"}.get(agent.status, "⚪")
+            self.agent_list.insert("end", f"{status_icon} {agent.name} — {agent.role} [{agent.status}]")
         if current in ids:
             index = ids.index(current)
             self.agent_list.selection_set(index)
@@ -196,7 +185,7 @@ class MultiAgentApp:
             )
             related = [m for m in self.world.messages.values() if m.sender == agent.id or m.recipient in {agent.id, "broadcast"}]
             for message in related[-100:]:
-                self.chat_text.insert("end", f"{message.timestamp} {message.sender} -> {message.recipient}: {message.content}\n")
+                self.chat_text.insert("end", f"{message.timestamp} {message.sender} → {message.recipient}: {message.content}\n")
         else:
             self.agent_details.configure(text="Агент не выбран")
         self.chat_text.configure(state="disabled")
@@ -205,8 +194,7 @@ class MultiAgentApp:
     def refresh_status(self) -> None:
         engine = "работает" if self.world.engine_running else "остановлен"
         model = self.world.selected_model or "модель не выбрана"
-        self.status_var.set(
-            f"Ollama: {'подключена' if self.ollama_available else 'не в сети'} | Движок: {engine} | Модель: {model} | "
+
             f"Агенты: {len(self.world.agents)} | Шаг: {self.world.tick_count}"
         )
 
@@ -250,11 +238,7 @@ class MultiAgentApp:
         self.save_and_refresh()
 
     def open_settings(self) -> None:
-        dialog = SettingsDialog(self.root, self.world.ollama_base_url)
-        if dialog.result:
-            self.world.ollama_base_url = dialog.result
-            self.ollama.set_base_url(dialog.result)
-            self.world.add_log(f"API Ollama изменён: {dialog.result}")
+
             self.save_and_refresh()
             self.check_ollama()
 
@@ -278,6 +262,33 @@ class MultiAgentApp:
         else:
             self.world.selected_model = ""
             self.model_combo.set("")
+
+    def start_ollama_service(self) -> None:
+        command = self.world.ollama_executable_path.strip() or "ollama"
+        try:
+            if self._ollama_process and self._ollama_process.poll() is None:
+                self.world.add_log("Ollama уже запущена из этого приложения")
+            else:
+                self._ollama_process = subprocess.Popen(
+                    [command, "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                )
+                self.world.add_log(f"Запуск Ollama: {command} serve")
+            self.save_and_refresh()
+            self.root.after(1800, self.check_ollama)
+        except FileNotFoundError:
+            messagebox.showerror(
+                "Запуск Ollama",
+                "Файл Ollama не найден. Укажите путь в Меню → Настройки Ollama или добавьте команду `ollama` в PATH.",
+            )
+            self.world.add_log(f"Не удалось запустить Ollama: файл не найден ({command})")
+            self.save_and_refresh()
+        except Exception as exc:
+            messagebox.showerror("Запуск Ollama", f"Не удалось запустить Ollama: {exc}")
+            self.world.add_log(f"Не удалось запустить Ollama: {exc}")
+            self.save_and_refresh()
 
     def install_ollama(self) -> None:
         self.ollama.open_install_page()

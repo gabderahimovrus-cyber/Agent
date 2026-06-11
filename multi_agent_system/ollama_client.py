@@ -12,9 +12,7 @@ from typing import Any, Dict, List, Optional
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 OLLAMA_INSTALL_URL = "https://ollama.com/download"
 OLLAMA_INSTALL_INSTRUCTIONS = (
-    "Установите Ollama с https://ollama.com/download, запустите приложение или службу Ollama, "
-    "затем выполните `ollama pull llama3.1` или загрузите другую модель в терминале. "
-    "Вернитесь в приложение и нажмите Проверить Ollama или Обновить модели."
+
 )
 
 
@@ -28,20 +26,14 @@ class OllamaStatus:
 class OllamaClient:
     """Check, list, and call local Ollama models."""
 
-    def __init__(self, base_url: str = OLLAMA_BASE_URL, timeout: float = 60.0) -> None:
-        self.base_url = ""
-        self.timeout = timeout
-        self.set_base_url(base_url)
 
-    def set_base_url(self, base_url: str) -> None:
-        self.base_url = (base_url or OLLAMA_BASE_URL).strip().rstrip("/")
 
     def _request_json(self, path: str, payload: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=self._headers(),
             method="GET" if payload is None else "POST",
         )
         with urllib.request.urlopen(request, timeout=timeout or self.timeout) as response:
@@ -50,9 +42,7 @@ class OllamaClient:
     def status(self) -> OllamaStatus:
         try:
             models = self.list_models()
-            return OllamaStatus(True, "Ollama доступна", models)
-        except Exception as exc:
-            return OllamaStatus(False, f"Ollama недоступна: {exc}", [])
+
 
     def list_models(self) -> List[str]:
         data = self._request_json("/api/tags", timeout=5.0)
