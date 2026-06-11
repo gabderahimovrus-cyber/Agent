@@ -1,50 +1,50 @@
-# Multi-Agent Local AI System
+# Локальная многоагентная ИИ-система
 
-A local Tkinter application that runs a tick-based multi-agent simulation with Ollama-backed language models. The system is designed to work on a local computer without mandatory cloud APIs.
+Локальное Tkinter-приложение для пошаговой многоагентной симуляции с языковыми моделями через Ollama. Система рассчитана на работу на локальном компьютере без обязательных облачных API.
 
-## Features
+## Возможности
 
-- Graphical interface with agent list, interaction logs, selected-agent chat, model controls, explicit Ollama check/refresh buttons, and system status.
-- Agent creation, editing, deletion, short-term memory, long-term memory, tools, status, and isolated logical identity.
-- Central message bus with direct and broadcast messages.
-- Tick-based simulation engine that prompts a selected Ollama model and safely applies structured JSON actions.
-- Ollama status checks, model list refresh, model selection, and an install button that opens the official Ollama download page and displays local setup instructions.
-- Persistent world state stored in `data/world_state.json` and restored on startup.
-- Controlled tools for file reads/writes inside `workspace/`, local Python snippets, memory updates, and inter-agent messages. Tools are checked against each agent's enabled tool list before execution.
-- Defensive handling for malformed model responses: errors are logged and the simulation keeps running.
+- Русскоязычный графический интерфейс со списком агентов, журналом взаимодействий, чатом выбранного агента, управлением моделями, проверкой Ollama и строкой статуса.
+- Меню **Меню → Настройки** с полем **API Ollama**, где можно указать адрес Ollama API, например `http://127.0.0.1:11434`.
+- Создание, изменение и удаление агентов, краткосрочная и долгосрочная память, инструменты, статус и изолированная логическая идентичность.
+- Центральная шина сообщений с прямыми и широковещательными сообщениями.
+- Пошаговый движок симуляции, который обращается к выбранной модели Ollama и безопасно применяет структурированные JSON-действия.
+- Проверка статуса Ollama, обновление списка моделей, выбор модели и кнопка установки, открывающая официальную страницу загрузки Ollama с локальными инструкциями.
+- Постоянное состояние мира в `data/world_state.json`, включая выбранную модель и адрес Ollama API, с восстановлением при запуске.
+- Контролируемые инструменты для чтения и записи файлов внутри `workspace/`, локальных Python-фрагментов, обновления памяти и сообщений между агентами.
+- Защитная обработка некорректных ответов модели: ошибки попадают в журнал, а симуляция продолжает работать.
 
-## Run
+## Запуск
 
 ```bash
 python main.py
 ```
 
-Install Ollama from <https://ollama.com/download>, start Ollama locally, and pull at least one model, for example:
+Установите Ollama с <https://ollama.com/download>, запустите Ollama локально и загрузите хотя бы одну модель, например:
 
 ```bash
 ollama pull llama3.1
 ```
 
-Then use **Check Ollama** or **Refresh models** in the application and choose the installed model. You can switch models at runtime from the model selector without restarting the app.
+Затем в приложении нажмите **Проверить Ollama** или **Обновить модели** и выберите установленную модель. Если Ollama работает по другому адресу, откройте **Меню → Настройки**, введите адрес в поле **API Ollama** и сохраните настройки.
 
-## Agent response format
+## Формат ответа агента
 
-Agents are instructed to return strict JSON:
+Агенты должны возвращать строгий JSON:
 
 ```json
 {
-  "thought": "short private reasoning summary",
+  "thought": "краткое приватное резюме рассуждения",
   "actions": [
-    {"tool": "remember", "args": {"content": "important event"}}
+    {"tool": "remember", "args": {"content": "важное событие"}}
   ],
   "messages": [
-    {"recipient": "broadcast", "content": "hello agents"}
+    {"recipient": "broadcast", "content": "привет, агенты"}
   ]
 }
 ```
 
-
-## Test
+## Тесты
 
 ```bash
 python -m unittest discover -s tests -v

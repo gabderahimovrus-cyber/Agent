@@ -71,6 +71,17 @@ class CoreTests(unittest.TestCase):
         self.assertIn("important", agent.long_term_memory)
         self.assertTrue(any(message.content == "hello peers" for message in world.messages.values()))
 
+    def test_world_state_persists_ollama_api_url(self) -> None:
+        world = WorldState(selected_model="local-model", ollama_base_url="http://ollama.example:11434")
+        restored = WorldState.from_dict(world.to_dict())
+        self.assertEqual(restored.ollama_base_url, "http://ollama.example:11434")
+
+    def test_ollama_client_trims_configured_api_url(self) -> None:
+        client = OllamaClient("http://ollama.example:11434/")
+        self.assertEqual(client.base_url, "http://ollama.example:11434")
+        client.set_base_url("http://127.0.0.1:11434/")
+        self.assertEqual(client.base_url, "http://127.0.0.1:11434")
+
     def test_world_store_recovers_from_corrupt_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "world_state.json"
