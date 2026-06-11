@@ -11,6 +11,11 @@ from typing import Any, Dict, List, Optional
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 OLLAMA_INSTALL_URL = "https://ollama.com/download"
+OLLAMA_INSTALL_INSTRUCTIONS = (
+    "Install Ollama from https://ollama.com/download, start the Ollama app or service, "
+    "then run `ollama pull llama3.1` or another model in a terminal. "
+    "Return to this app and click Check Ollama or Refresh models."
+)
 
 
 @dataclass
@@ -55,6 +60,10 @@ class OllamaClient:
             {"model": model, "prompt": prompt, "stream": False, "format": "json"},
         )
         return data.get("response", "")
+
+    @staticmethod
+    def install_instructions() -> str:
+        return OLLAMA_INSTALL_INSTRUCTIONS
 
     @staticmethod
     def open_install_page() -> None:
