@@ -18,6 +18,9 @@ class WorldState:
     messages: Dict[str, Message] = field(default_factory=dict)
     logs: List[str] = field(default_factory=list)
     selected_model: str = ""
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_api_key: str = ""
+    ollama_executable_path: str = ""
     engine_running: bool = False
     tick_count: int = 0
     project_files: Dict[str, str] = field(default_factory=dict)
@@ -28,9 +31,9 @@ class WorldState:
             del self.logs[:-1000]
 
     def add_agent(self, name: str, role: str, system_prompt: str) -> Agent:
-        agent = Agent(name=name.strip() or "Agent", role=role.strip() or "Assistant", system_prompt=system_prompt.strip())
+        agent = Agent(name=name.strip() or "Агент", role=role.strip() or "Ассистент", system_prompt=system_prompt.strip())
         self.agents[agent.id] = agent
-        self.add_log(f"Created agent {agent.name} ({agent.id})")
+        self.add_log(f"Создан агент {agent.name} ({agent.id})")
         return agent
 
     def update_agent(self, agent_id: str, name: str, role: str, system_prompt: str) -> None:
@@ -38,12 +41,12 @@ class WorldState:
         agent.name = name.strip() or agent.name
         agent.role = role.strip() or agent.role
         agent.system_prompt = system_prompt.strip() or agent.system_prompt
-        self.add_log(f"Updated agent {agent.name} ({agent.id})")
+        self.add_log(f"Обновлён агент {agent.name} ({agent.id})")
 
     def delete_agent(self, agent_id: str) -> None:
         agent = self.agents.pop(agent_id, None)
         if agent:
-            self.add_log(f"Deleted agent {agent.name} ({agent.id})")
+            self.add_log(f"Удалён агент {agent.name} ({agent.id})")
 
     def send_message(self, sender: str, recipient: str, content: str, message_type: str = "direct") -> Message:
         if recipient == "broadcast":
@@ -60,7 +63,7 @@ class WorldState:
         for agent_id in recipients:
             if agent_id in self.agents:
                 self.agents[agent_id].incoming_message_ids.append(message.id)
-        self.add_log(f"Message {message.message_type}: {sender} -> {recipient}: {content[:160]}")
+        self.add_log(f"Сообщение {message.message_type}: {sender} -> {recipient}: {content[:160]}")
         return message
 
     def get_agent_inbox(self, agent_id: str) -> List[Message]:
@@ -77,6 +80,9 @@ class WorldState:
             "messages": {key: message.to_dict() for key, message in self.messages.items()},
             "logs": self.logs,
             "selected_model": self.selected_model,
+            "ollama_base_url": self.ollama_base_url,
+            "ollama_api_key": self.ollama_api_key,
+            "ollama_executable_path": self.ollama_executable_path,
             "engine_running": self.engine_running,
             "tick_count": self.tick_count,
             "project_files": self.project_files,
@@ -89,6 +95,9 @@ class WorldState:
             messages={key: Message.from_dict(value) for key, value in data.get("messages", {}).items()},
             logs=data.get("logs", []),
             selected_model=data.get("selected_model", ""),
+            ollama_base_url=data.get("ollama_base_url", "http://127.0.0.1:11434"),
+            ollama_api_key=data.get("ollama_api_key", ""),
+            ollama_executable_path=data.get("ollama_executable_path", ""),
             engine_running=False,
             tick_count=data.get("tick_count", 0),
             project_files=data.get("project_files", {}),
@@ -105,16 +114,16 @@ class WorldStore:
         if not self.path.exists():
             world = WorldState()
             world.add_agent(
-                "Coordinator",
-                "Plans collaboration between agents",
-                "You coordinate the local multi-agent world. Return strict JSON only.",
+                "Координатор",
+                "Планирует взаимодействие агентов",
+                "Ты координируешь локальный многоагентный мир. Отвечай только строгим JSON.",
             )
             world.add_agent(
-                "Researcher",
-                "Analyzes incoming tasks and reports findings",
-                "You research tasks inside the simulation. Return strict JSON only.",
+                "Исследователь",
+                "Анализирует входящие задачи и сообщает результаты",
+                "Ты исследуешь задачи внутри симуляции. Отвечай только строгим JSON.",
             )
-            world.add_log("Initialized new world state")
+            world.add_log("Создано новое состояние мира")
             return world
         try:
             return WorldState.from_dict(json.loads(self.path.read_text(encoding="utf-8")))
@@ -122,7 +131,7 @@ class WorldStore:
             backup = self.path.with_suffix(".corrupt.json")
             self.path.replace(backup)
             world = WorldState()
-            world.add_log(f"Failed to load state; moved corrupt file to {backup.name}: {exc}")
+            world.add_log(f"Не удалось загрузить состояние; повреждённый файл перенесён в {backup.name}: {exc}")
             return world
 
     def save(self, world: WorldState) -> None:
